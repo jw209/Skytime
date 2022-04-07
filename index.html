@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Skytime</title>
+        <link rel="stylesheet" href="styles.css">
+        <script type="text/javascript" src="three.js-master/build/three.min.js"></script>
+    </head>
+    <body>
+        <div id="world">
+            <h1 id="score"></h1>
+            <h1 id="health"></h1>
+            <h1 id="time"></h1>
+        </div>
+        <script>
+
+            // VARIABLES
+            //
+            var scene, camera, FOV, aspectRatio, nearPlane, farPlane, HEIGHT, WIDTH, renderer, container;
+            
+            var hemisphereLight, shadowLight;
+
+            var mousePos = {x: 0, y: 0};
+
+            var clickCount = 0;
+
+            var clock, invisibilityClock;
+
+            var Colors = {
+                red: 0xf25346,
+                white: 0xd8d01d1,
+                brown: 0x59332e,
+                pink: 0xF5986E,
+                brownDark: 0x23190f,
+                blue: 0x68c3c0,
+            }
+
+            // SCORING AND HEALTH TRACKER VARIABLES
+            //
+            var score = 0;
+            var health = "♡♡♡♡♡";
+            var invisibilityPeriod = false;
+            //
+            // END VARIABLES
+
+            // LOAD INIT() FUNCTION
+            window.addEventListener('load', init, false);
+
+            // INSTANTIATES GAME
+            function init() {
+                // set up scene
+                createScene();
+
+                // add lights
+                createLights();
+
+                // add objects
+                createPlane();
+                createSea();
+                createSky();
+
+                document.addEventListener('mousemove', handleMouseMove, false);
+                document.addEventListener('click', handleMouseClick, false);
+                
+                clock = new THREE.Clock(true);
+                clock.getElapsedTime;
+
+                invisibilityClock = new THREE.Clock(false);
+
+                document.getElementById("score").innerHTML = "Score: " + score;
+                document.getElementById("health").innerHTML = "Health: " + health;
+                document.getElementById("time").innerHTML = "Time: " + clock.getElapsedTime();
+
+                loop();
+            }
+
+            // CREATES THE SCENE
+            function createScene() {
+                HEIGHT = window.innerHeight;
+                WIDTH = window.innerWidth;
+
+                scene = new THREE.Scene();
+
+                scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
+
+                aspectRatio = WIDTH / HEIGHT;
+                FOV = 60;
+                nearPlane = 1;
+                farPlane = 10000;
+                camera = new THREE.PerspectiveCamera(
+                    FOV,
+                    aspectRatio,
+                    nearPlane,
+                    farPlane
+                );
+
+                camera.position.x = 0;
+                camera.position.z = 200;
+                camera.position.y = 100
+
+                renderer = new THREE.WebGLRenderer({
+                    alpha: true,
+                    antialias: true
+                });
+
+                renderer.setSize(WIDTH, HEIGHT);
+
+                renderer.shadowMap.enabled = true;
+
+                container = document.getElementById('world');
+                container.appendChild(renderer.domElement);
+
+                window.addEventListener('resize', handleWindowResize, false);
+            }
+            
+            // HANDLERS
+            //
+            function handleWindowResize() {
+                HEIGHT = window.innerHeight;
+                WIDTH = window.innerWidth;
+                renderer.setSize(WIDTH, HEIGHT);
+                camera.aspect = WIDTH / HEIGHT;
+                camera.updateProjectionMatrix();
+            }
+
+            function handleMouseMove(event) {
+
+                var tx = -1 + (event.clientX / WIDTH) * 2;
+
+                var ty = 1 - (event.clientY / HEIGHT) * 2;
+                
+                mousePos = {x: tx, y: ty};
+            }
+
+            function handleMouseClick(event) {
+                if (!scene.getObjectByName('bullet')) {
+                    spawnBullet();
+                }   
+            }
+            //
+            // END HANDLERS
+
+            // CREATE ENVIRONMENT
+            //
+            function createLights() {
+                hemisphereLight = new THREE.HemisphereLight(0xaaaaaa, 0x000000, .9);
+
+                shadowLight = new THREE.DirectionalLight(0xffffff, .9);
+
+                shadowLight.position.set(150, 350, 350);
+
+                shadowLight.castShadow = true;
+
+                shadowLight.shadow.camera.left = -400;
+                shadowLight.shadow.camera.right = 400;
+                shadowLight.shadow.camera.top = 400;
+                shadowLight.shadow.camera.bottom = -400;
+                shadowLight.shadow.camera.near = 1;
+                shadowLight.shadow.camera.far = 1000;
+
+                shadowLight.shadow.mapSize.width = 2048;
+                shadowLight.shadow.mapSize.height = 2048
+
+                scene.add(hemisphereLight);
+                scene.add(shadowLight);
+            }
+
+            Sea = function() {
+                var geometry = new THREE.CylinderGeometry(600, 600, 800, 40, 10);
+                
+                geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI/2));
+
+                var material = new THREE.MeshPhongMaterial({
+                    color: Colors.blue,
+                    transparent: true,
+                    opacity: .6,
+                });
+
+                this.mesh = new THREE.Mesh(geometry, material);
+
+                this.mesh.receiveShadow = true;
+            }
+            function createSea() {
+                sea = new Sea();
+
+                sea.mesh.position.y = -600;
+
+                scene.add(sea.mesh);
+            }
+
+            Cloud = function() {
+                this.mesh = new THREE.Object3D();
+
+                var geometry = new THREE.BoxGeometry(20, 20, 20);
+
+                var material = new THREE.MeshPhongMaterial({
+                    color: Colors.white,
+                });
+
+                var kCubes = 3+Math.floor(Math.random() * 3);
+                for (var i = 0; i < kCubes; i++) {
+                    var m = new THREE.Mesh(geometry, material)
+
+                    m.position.x = i*15;
+                    m.position.y = Math.random()*10;
+                    m.position.z = Math.random()*10;
+                    m.rotation.z = Math.random()*Math.PI*2;
+                    m.rotation.y = Math.random()*Math.PI*2;
+
+                    var s = .1 + Math.random() * .9;
+		            m.scale.set(s,s,s);
+
+                    m.castShadow = true;
+		            m.receiveShadow = true;
+
+                    this.mesh.add(m);
+                }
+            }
+
+            Sky = function() {
+                this.mesh = new THREE.Object3D();
+
+                this.kCubes = 20;
+
+                var stepAngle = Math.PI * 2 / this.kCubes;
+
+                for (var i = 0; i < this.kCubes; i++) {
+                    var c = new Cloud();
+
+                    var a = stepAngle*i;
+                    var h = 750 + Math.random() * 200;
+
+                    c.mesh.position.y = Math.sin(a) * h;
+                    c.mesh.position.x =  Math.cos(a) * h;
+                    
+                    c.mesh.rotation.z = a + Math.PI / 2;
+
+                    c.mesh.position.z = -400 - Math.random() * 400;
+
+                    var s = 1 + Math.random() * 4;
+                    c.mesh.scale.set(s, s, s);
+
+                    this.mesh.add(c.mesh);
+                }
+            }
+            function createSky() {
+                sky = new Sky();
+                sky.mesh.position.y = -600;
+                scene.add(sky.mesh);
+            }
+            //
+            // END CREATE ENVIRONMENT
+
+            // CREATE ROCK ENEMY OBJECTS
+            //
+            SmallRock = function() {
+                var geometryRock = new THREE.SphereGeometry(6, 6, 6);
+                var materialRock = new THREE.MeshPhongMaterial({color: Colors.brown});
+                this.mesh = new THREE.Mesh(geometryRock, materialRock);
+                this.mesh.castShadow = true;
+                this.mesh.name = 'smallRock';
+            }
+            var smallRock;
+            function spawnSmallRock() {
+                smallRock = new SmallRock();
+                smallRock.mesh.position.y = 50 + Math.random() * 120;
+                smallRock.mesh.position.x = 300;
+                scene.add(smallRock.mesh);
+            }
+
+            MediumRock = function() {
+                var geometryRock = new THREE.SphereGeometry(8, 8, 8);
+                var materialRock = new THREE.MeshPhongMaterial({color: Colors.brown});
+                this.mesh = new THREE.Mesh(geometryRock, materialRock);
+                this.mesh.castShadow = true;
+                this.mesh.name = 'mediumRock';
+            }
+            var mediumRock;
+            function spawnMediumRock() {
+                mediumRock = new MediumRock();
+                mediumRock.mesh.position.y = 50 + Math.random() * 120;
+                mediumRock.mesh.position.x = 300;
+                scene.add(mediumRock.mesh);
+            }
+
+            BigRock = function() {
+                var geometryRock = new THREE.SphereGeometry(12, 12, 12);
+                var materialRock = new THREE.MeshPhongMaterial({color: Colors.brown});
+                this.mesh = new THREE.Mesh(geometryRock, materialRock);
+                this.mesh.castShadow = true;
+                this.mesh.name = 'bigRock';
+            }
+            var bigRock;
+            function spawnBigRock() {
+                bigRock = new BigRock();
+                bigRock.mesh.position.y = 50 + Math.random() * 120;
+                bigRock.mesh.position.x = 300;
+                scene.add(bigRock.mesh);
+            }
+
+            function spawnRocks() {
+                var selector = Math.floor(Math.random() * 3);
+                switch (selector) {
+                    case 0: if (!scene.getObjectByName('smallRock')) {
+                            spawnSmallRock();
+                        }
+                        break;     
+                    case 1: if (!scene.getObjectByName('mediumRock')) {
+                            spawnMediumRock();
+                        }
+                        break;
+                    case 2: if (!scene.getObjectByName('bigRock')) {
+                            spawnBigRock();
+                        }
+                        break;
+                }
+            }
+            //
+            // END CREATE ROCK ENEMY OBJECTS
+
+
+            // CREATE BULLET
+            //
+            Bullet = function() {
+                var geometryBullet = new THREE.BoxGeometry(10, 3, 3, 1, 1, 1);
+                var materialBullet = new THREE.MeshPhongMaterial({color: Colors.red});
+                this.mesh = new THREE.Mesh(geometryBullet, materialBullet);
+                this.mesh.castShadow = true;
+                this.mesh.name = 'bullet';
+            }
+
+            function spawnBullet() {
+                bullet = new Bullet();
+                bullet.mesh.position.y = airplane.mesh.position.y;
+                bullet.mesh.position.x = airplane.mesh.position.x;
+                scene.add(bullet.mesh);
+            }
+            //
+            // END CREATE BULLET
+
+            // CREATE AIRCRAFT
+            //
+            var Aircraft = function() {
+                this.mesh = new THREE.Object3D();
+                var geometryCockpit = new THREE.BoxGeometry(60, 50, 50, 1, 1, 1);
+                var materialCockpit = new THREE.MeshPhongMaterial({color: Colors.red});
+                var cockpit = new THREE.Mesh(geometryCockpit, materialCockpit);
+                cockpit.castShadow = true;
+                cockpit.receiveShadow = true;
+                this.mesh.add(cockpit);
+
+                var geometryEngine = new THREE.BoxGeometry(20, 50, 50, 1, 1, 1);
+                var materialEngine = new THREE.MeshPhongMaterial({color: Colors.white});
+                var engine = new THREE.Mesh(geometryEngine, materialEngine);
+                engine.position.x = 40;
+                engine.castShadow = true;
+                engine.receiveShadow = true;
+                this.mesh.add(engine);
+
+                var geometryTail = new THREE.BoxGeometry(15, 20, 5, 1, 1, 1);
+                var materialTail = new THREE.MeshPhongMaterial({color: Colors.red});
+                var tailPlane = new THREE.Mesh(geometryTail, materialTail);
+                tailPlane.position.set(-35, 25, 0);
+                tailPlane.castShadow = true;
+                tailPlane.receiveShadow = true;
+                this.mesh.add(tailPlane);
+
+                var geometryWing = new THREE.BoxGeometry(40, 8, 150, 1, 1, 1);
+                var materialWing = new THREE.MeshPhongMaterial({color: Colors.red});
+                var wing = new THREE.Mesh(geometryWing, materialWing);
+                wing.castShadow = true;
+                wing.receiveShadow = true;
+                this.mesh.add(wing);
+
+                var geometryPropeller = new THREE.BoxGeometry(20,10,10,1,1,1);
+                var materialPropeller = new THREE.MeshPhongMaterial({color:Colors.brown});
+                this.propeller = new THREE.Mesh(geometryPropeller, materialPropeller);
+                this.propeller.castShadow = true;
+                this.propeller.receiveShadow = true;
+
+                var geometryBlade = new THREE.BoxGeometry(1, 100, 20, 1, 1, 1);
+                var materialBlade = new THREE.MeshPhongMaterial({color: Colors.brownDark});
+
+                var blade = new THREE.Mesh(geometryBlade, materialBlade);
+                blade.position.set(8, 0, 0);
+                blade.castShadow = true;
+                blade.receiveShadow = true;
+                this.propeller.add(blade);
+                this.propeller.position.set(50, 0, 0);
+                this.mesh.add(this.propeller);
+            };
+
+            var airplane;
+            function createPlane() {
+                airplane = new Aircraft();
+                airplane.mesh.scale.set(.25, .25, .25);
+                airplane.mesh.position.y = 100;
+                airplane.mesh.position.x = -100;
+                scene.add(airplane.mesh);
+            }
+            //
+            // END CREATE AIRCRAFT
+
+            // UPDATES
+            //
+            function updatePlane() {
+                var targetY = normalize(mousePos.y, -.75, .75, 25, 175);
+                var targetX = normalize(mousePos.x, -.75, .75, -100, 100);
+
+                airplane.mesh.position.y += (targetY-airplane.mesh.position.y) * .1;
+
+                airplane.mesh.rotation.z = (targetY-airplane.mesh.position.y) * .0128;
+                airplane.mesh.rotation.x = (airplane.mesh.position.y-targetY) * .0064;
+
+                airplane.propeller.rotation.x += 0.3;
+            }
+
+            function updateBullet() {
+                bullet.mesh.position.x += 20;
+                if (bullet.mesh.position.x > 400) {
+                    scene.remove(bullet.mesh)
+                }
+            }
+
+            function detectCollisionCubes(object1, object2){
+                object1.geometry.computeBoundingBox(); //not needed if its already calculated
+                object2.geometry.computeBoundingBox();
+                object1.updateMatrixWorld();
+                object2.updateMatrixWorld();
+                
+                var box1 = object1.geometry.boundingBox.clone();
+                box1.applyMatrix4(object1.matrixWorld);
+
+                var box2 = object2.geometry.boundingBox.clone();
+                box2.applyMatrix4(object2.matrixWorld);
+
+                return box1.intersectsBox(box2);
+            }
+
+            // HELPERS
+            //
+            function normalize(v, vmin, vmax, tmin, tmax) {
+                
+                var nv = Math.max(Math.min(v, vmax), vmin);
+                var dv = vmax-vmin;
+                var pc = (nv-vmin)/dv;
+                var dt = tmax-tmin;
+                var tv = tmin + (pc * dt);
+                return tv;
+            }
+            //
+            // END HELPERS
+
+            // VARIABLES FOR GAME CLOCK
+            var delta = 0;
+            var elapsedTime = 0;
+            var oldTime = 0;
+
+            var invisibilityClock = 0;
+
+            function loop() {
+                delta = clock.getDelta();
+                elapsedTime = clock.getElapsedTime();
+
+                airplane.propeller.rotation.x += 0.3;
+                sea.mesh.rotation.z += .005;
+                sky.mesh.rotation.z += .007;
+                
+                updatePlane();
+
+                if (scene.getObjectByName('bullet')) updateBullet();
+
+                // handle shooting collisions
+                if (scene.getObjectByName('bullet') && scene.getObjectByName('smallRock')) {
+                    
+                    if (detectCollisionCubes(bullet.mesh, smallRock.mesh)) {
+                        score += 1;
+                        document.getElementById("score").innerHTML = "Score: " + score;
+                        scene.remove(bullet.mesh);
+                        scene.remove(smallRock.mesh);
+                    }
+                    
+                }
+                if (scene.getObjectByName('bullet') && scene.getObjectByName('mediumRock')) {
+                    
+                    if (detectCollisionCubes(bullet.mesh, mediumRock.mesh)) {
+                        score += 1;
+                        document.getElementById("score").innerHTML = "Score: " + score;
+                        scene.remove(bullet.mesh);
+                        scene.remove(mediumRock.mesh);
+                    }
+                    
+                }
+                if (scene.getObjectByName('bullet') && scene.getObjectByName('bigRock')) {
+                    
+                    if (detectCollisionCubes(bullet.mesh, bigRock.mesh)) {
+                        score += 1;
+                        document.getElementById("score").innerHTML = "Score: " + score;
+                        scene.remove(bullet.mesh);
+                        scene.remove(bigRock.mesh);
+                    }
+                    
+                }
+
+                if (invisibilityClock.getElapsedTime() > 3) {
+                    invisibilityPeriod = false;
+                }
+
+                // handle rock collisions with aircraft
+                if (scene.getObjectByName('smallRock') && !invisibilityPeriod) {
+                    if (detectCollisionCubes(airplane.propeller, smallRock.mesh)) {
+                        health = health.substring(0, health.length-1);
+                        document.getElementById("health").innerHTML = "Health: " + health;
+                        invisibilityPeriod = true;
+                        invisibilityClock.start()
+                    }
+                }
+
+                if (scene.getObjectByName('smallRock')) {
+                    smallRock.mesh.position.x -= 4;
+                    if (smallRock.mesh.position.x == -300) scene.remove(smallRock.mesh);
+                } 
+                if (scene.getObjectByName('mediumRock')) {
+                    mediumRock.mesh.position.x -= 3;
+                    if (mediumRock.mesh.position.x == -300) scene.remove(mediumRock.mesh);
+                }
+                if (scene.getObjectByName('bigRock')) {
+                    bigRock.mesh.position.x -= 2;
+                    if (bigRock.mesh.position.x == -300) scene.remove(bigRock.mesh);
+                }
+
+                // handle timed events
+                if (clock.getElapsedTime() > .25) {
+                    spawnRocks();
+                    clock.start();
+                }
+
+                renderer.render(scene, camera);
+
+                requestAnimationFrame(loop);
+            }
+
+        </script>
+    </body>
+</html>
