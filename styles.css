@@ -6,3 +6,8 @@
     background: linear-gradient(#e4e0ba, #7fd9aa);
     cursor:crosshair;
 }
+
+#interface {
+    position:absolute;
+    width: 100%;
+}

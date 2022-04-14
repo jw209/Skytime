@@ -7,9 +7,14 @@
     </head>
     <body>
         <div id="world">
-            <h1 id="score"></h1>
-            <h1 id="health"></h1>
-            <h1 id="time"></h1>
+            <div id="stats">
+                <h3 id="endofgame" style="float: left; padding: 2%; margin: 3;"></h3>
+                <h3 id="score" style="float: left; padding: 2%; margin: 3;"></h3>
+                <h3 id="health" style="float: right; padding: 2%; margin: 3;"></h3>
+                <h3 id="gas" style="float: left; padding: 2%; margin: 3;"></h3>
+                <h3 id="time" style="float: right; padding: 2%; margin: 3;"></h3>
+            </div>
+            
         </div>
         <script>
 
@@ -23,7 +28,7 @@
 
             var clickCount = 0;
 
-            var clock, invisibilityClock;
+            var clock, invisibilityClock, gasClock, UIclock;
 
             var Colors = {
                 red: 0xf25346,
@@ -38,6 +43,7 @@
             //
             var score = 0;
             var health = "♡♡♡♡♡";
+            var gas = ">>>>>>>>>>";
             var invisibilityPeriod = false;
             //
             // END VARIABLES
@@ -65,9 +71,12 @@
                 clock.getElapsedTime;
 
                 invisibilityClock = new THREE.Clock(false);
+                gasClock = new THREE.Clock(true);
+                UIclock = new THREE.Clock(true);
 
                 document.getElementById("score").innerHTML = "Score: " + score;
                 document.getElementById("health").innerHTML = "Health: " + health;
+                document.getElementById("gas").innerHTML = "Gas: " + gas;
                 document.getElementById("time").innerHTML = "Time: " + clock.getElapsedTime();
 
                 loop();
@@ -95,7 +104,7 @@
 
                 camera.position.x = 0;
                 camera.position.z = 200;
-                camera.position.y = 100
+                camera.position.y = 50
 
                 renderer = new THREE.WebGLRenderer({
                     alpha: true,
@@ -250,6 +259,25 @@
             //
             // END CREATE ENVIRONMENT
 
+            // CREATE GAS TANKS
+            //
+            GasTank = function() {
+                var geometryTank = new THREE.BoxGeometry(3, 6, 3);
+                var materialTank = new THREE.MeshPhongMaterial({color: Colors.blue});
+                this.mesh = new THREE.Mesh(geometryTank, materialTank);
+                this.mesh.castShadow = true;
+                this.mesh.name = 'gasTank';
+            }
+            var gasTank;
+            function spawnGasTank() {
+                gasTank = new GasTank();
+                gasTank.mesh.position.y = 50 + Math.random() * 100;
+                gasTank.mesh.position.x = 300;
+                scene.add(gasTank.mesh);
+            }
+            //
+            // END CREATE GAS TANKS
+
             // CREATE ROCK ENEMY OBJECTS
             //
             SmallRock = function() {
@@ -262,7 +290,7 @@
             var smallRock;
             function spawnSmallRock() {
                 smallRock = new SmallRock();
-                smallRock.mesh.position.y = 50 + Math.random() * 120;
+                smallRock.mesh.position.y = 50 + Math.random() * 100;
                 smallRock.mesh.position.x = 300;
                 scene.add(smallRock.mesh);
             }
@@ -277,7 +305,7 @@
             var mediumRock;
             function spawnMediumRock() {
                 mediumRock = new MediumRock();
-                mediumRock.mesh.position.y = 50 + Math.random() * 120;
+                mediumRock.mesh.position.y = 50 + Math.random() * 100;
                 mediumRock.mesh.position.x = 300;
                 scene.add(mediumRock.mesh);
             }
@@ -292,7 +320,7 @@
             var bigRock;
             function spawnBigRock() {
                 bigRock = new BigRock();
-                bigRock.mesh.position.y = 50 + Math.random() * 120;
+                bigRock.mesh.position.y = 50 + Math.random() * 100;
                 bigRock.mesh.position.x = 300;
                 scene.add(bigRock.mesh);
             }
@@ -350,11 +378,12 @@
 
                 var geometryEngine = new THREE.BoxGeometry(20, 50, 50, 1, 1, 1);
                 var materialEngine = new THREE.MeshPhongMaterial({color: Colors.white});
-                var engine = new THREE.Mesh(geometryEngine, materialEngine);
-                engine.position.x = 40;
-                engine.castShadow = true;
-                engine.receiveShadow = true;
-                this.mesh.add(engine);
+                //var engine = new THREE.Mesh(geometryEngine, materialEngine);
+                this.engine = new THREE.Mesh(geometryEngine, materialEngine);
+                this.engine.position.x = 40;
+                this.engine.castShadow = true;
+                this.engine.receiveShadow = true;
+                this.mesh.add(this.engine);
 
                 var geometryTail = new THREE.BoxGeometry(15, 20, 5, 1, 1, 1);
                 var materialTail = new THREE.MeshPhongMaterial({color: Colors.red});
@@ -379,7 +408,6 @@
 
                 var geometryBlade = new THREE.BoxGeometry(1, 100, 20, 1, 1, 1);
                 var materialBlade = new THREE.MeshPhongMaterial({color: Colors.brownDark});
-
                 var blade = new THREE.Mesh(geometryBlade, materialBlade);
                 blade.position.set(8, 0, 0);
                 blade.castShadow = true;
@@ -457,9 +485,17 @@
 
             var invisibilityClock = 0;
 
+            var finalTime = 0;
+            var finalScore = 0;
+            var finalIsLogged = false;
+            var gameOver = false;
+
             function loop() {
                 delta = clock.getDelta();
                 elapsedTime = clock.getElapsedTime();
+                UItime = UIclock.getElapsedTime();
+
+                document.getElementById("time").innerHTML = "Time: " + UItime;
 
                 airplane.propeller.rotation.x += 0.3;
                 sea.mesh.rotation.z += .005;
@@ -470,35 +506,37 @@
                 if (scene.getObjectByName('bullet')) updateBullet();
 
                 // handle shooting collisions
-                if (scene.getObjectByName('bullet') && scene.getObjectByName('smallRock')) {
+                if (!gameOver) {
+                    if (scene.getObjectByName('bullet') && scene.getObjectByName('smallRock')) {
                     
-                    if (detectCollisionCubes(bullet.mesh, smallRock.mesh)) {
-                        score += 1;
-                        document.getElementById("score").innerHTML = "Score: " + score;
-                        scene.remove(bullet.mesh);
-                        scene.remove(smallRock.mesh);
+                        if (detectCollisionCubes(bullet.mesh, smallRock.mesh)) {
+                            score += 1;
+                            document.getElementById("score").innerHTML = "Score: " + score;
+                            scene.remove(bullet.mesh);
+                            scene.remove(smallRock.mesh);
+                        }
+                        
                     }
-                    
-                }
-                if (scene.getObjectByName('bullet') && scene.getObjectByName('mediumRock')) {
-                    
-                    if (detectCollisionCubes(bullet.mesh, mediumRock.mesh)) {
-                        score += 1;
-                        document.getElementById("score").innerHTML = "Score: " + score;
-                        scene.remove(bullet.mesh);
-                        scene.remove(mediumRock.mesh);
+                    if (scene.getObjectByName('bullet') && scene.getObjectByName('mediumRock')) {
+                        
+                        if (detectCollisionCubes(bullet.mesh, mediumRock.mesh)) {
+                            score += 1;
+                            document.getElementById("score").innerHTML = "Score: " + score;
+                            scene.remove(bullet.mesh);
+                            scene.remove(mediumRock.mesh);
+                        }
+                        
                     }
-                    
-                }
-                if (scene.getObjectByName('bullet') && scene.getObjectByName('bigRock')) {
-                    
-                    if (detectCollisionCubes(bullet.mesh, bigRock.mesh)) {
-                        score += 1;
-                        document.getElementById("score").innerHTML = "Score: " + score;
-                        scene.remove(bullet.mesh);
-                        scene.remove(bigRock.mesh);
+                    if (scene.getObjectByName('bullet') && scene.getObjectByName('bigRock')) {
+                        
+                        if (detectCollisionCubes(bullet.mesh, bigRock.mesh)) {
+                            score += 1;
+                            document.getElementById("score").innerHTML = "Score: " + score;
+                            scene.remove(bullet.mesh);
+                            scene.remove(bigRock.mesh);
+                        }
+                        
                     }
-                    
                 }
 
                 if (invisibilityClock.getElapsedTime() > 3) {
@@ -508,11 +546,47 @@
                 // handle rock collisions with aircraft
                 if (scene.getObjectByName('smallRock') && !invisibilityPeriod) {
                     if (detectCollisionCubes(airplane.propeller, smallRock.mesh)) {
+                        scene.remove(smallRock.mesh);
                         health = health.substring(0, health.length-1);
                         document.getElementById("health").innerHTML = "Health: " + health;
                         invisibilityPeriod = true;
                         invisibilityClock.start()
                     }
+                }
+                if (scene.getObjectByName('mediumRock') && !invisibilityPeriod) {
+                    if (detectCollisionCubes(airplane.propeller, mediumRock.mesh)) {
+                        scene.remove(mediumRock.mesh);
+                        health = health.substring(0, health.length-2);
+                        document.getElementById("health").innerHTML = "Health: " + health;
+                        invisibilityPeriod = true;
+                        invisibilityClock.start()
+                    }
+                }
+
+                if (scene.getObjectByName('bigRock') && !invisibilityPeriod) {
+                    if (detectCollisionCubes(airplane.propeller, bigRock.mesh)) {
+                        scene.remove(bigRock.mesh);
+                        health = health.substring(0, health.length-3);
+                        document.getElementById("health").innerHTML = "Health: " + health;
+                        invisibilityPeriod = true;
+                        invisibilityClock.start()
+                    }
+                }
+
+                // handle gas tank collisions with aircraft
+                if (scene.getObjectByName('gasTank') && !gameOver) {
+                    if (detectCollisionCubes(airplane.engine, gasTank.mesh)) {
+                        if (gas != ">>>>>>>>>>") {
+                            gas = gas+'>';
+                        }
+                        document.getElementById("gas").innerHTML = "Gas: " + gas;
+                        scene.remove(gasTank.mesh);
+                    }
+                }
+
+                if (scene.getObjectByName('gasTank')) {
+                    gasTank.mesh.position.x -= 5.5;
+                    if (gasTank.mesh.position.x == -300) scene.remove(gasTank);
                 }
 
                 if (scene.getObjectByName('smallRock')) {
@@ -532,6 +606,28 @@
                 if (clock.getElapsedTime() > .25) {
                     spawnRocks();
                     clock.start();
+                }
+
+                if (gasClock.getElapsedTime() > 3 && !gameOver) {
+                    gas = gas.substring(0, gas.length-1);
+                    document.getElementById("gas").innerHTML = "Gas: " + gas;
+                    spawnGasTank();
+                    gasClock.start();
+                }
+
+                if (health == '' || gas == '') {
+                    gameOver = true;
+                    document.getElementById("score").innerHTML = "";
+                    document.getElementById("gas").innerHTML = ""
+                    document.getElementById("health").innerHTML = "";
+                    document.getElementById("time").innerHTML = "";
+                    console.log("game over");
+                    if (!finalIsLogged) {
+                        finalTime = UItime;
+                        finalScore = score;
+                        finalIsLogged = true;
+                    }
+                    document.getElementById("endofgame").innerHTML = "Game over! You scored " + finalScore + " points in " + finalTime + " seconds. Refresh to try again!";
                 }
 
                 renderer.render(scene, camera);
